@@ -23,31 +23,22 @@
 #include "geometry_msgs/Twist.h"
 #include "std_msgs/Float32.h"
 #include "nav_msgs/Odometry.h"
-#include "message_filters/subscriber.h"
-#include "message_filters/synchronizer.h"
-#include "message_filters/sync_policies/approximate_time.h"
-
-#define READIMAGE_ONLY
-#define RIGHT 2
-#define LEFT 1
-#ifndef READIMAGE_ONLY
-#endif
 
 using namespace cv;
 using namespace std;
 
+// ------------------------------------------ global variables and params ------------------------------------------
 int threshold_y = 330;
 int step = 0;
 int state_machine = 0;
 double pi = 3.1415926;
-
-int num = 0;
 
 double pos_x = 0;
 double pos_y = 0;
 double pos_x_temp = 0;
 double pos_y_temp = 0;
 double angle = 0;
+
 geometry_msgs::Twist msg;
 int pt_tf_flag = 0;
 int initial_stage_pass_flag = 0;
@@ -55,7 +46,7 @@ int X0 = 336;
 int current_step = 0;
 int flag_cacu = 0;
 
-int flag = 0;
+int final_approach_flag = 0;
 int t = 0;
 
 double x_a;
@@ -95,7 +86,7 @@ typedef struct center
     int y = 0;
 } Center;
 
-void color_thresh(Mat input);
+// ------------------------------------------ function declaration (deprecated in a large main.cpp) ------------------------------------------
 void HSV_threshold(Mat H, Mat S, Mat V, Mat dst, int H_L, int H_H, int S_L, int S_H, int V_L, int V_H);
 void color_detect(Mat input, Center *center_left, Center *center_right, int *Pixel_left, int *Pixel_right, int H_L, int H_H, int S_L, int S_H, int V_L, int V_H);
 void imu_angle_callback(const std_msgs::Float32::ConstPtr &msg);
@@ -104,15 +95,12 @@ void imu_odom_callback(const std_msgs::Float32::ConstPtr &imu, const nav_msgs::O
 bool pt_transform(Mat &img, Mat &dst, Point2d P1, Point2d P2, Point2d P3, Point2d P4);
 void map_transform(int xa, int ya, int xb, int yb);
 void calculate_motion_param(void);
-void run(double x, double z)
-{
-    msg.linear.x = x;
-    msg.angular.z = z;
-}
+void run(double x, double z);
 
+// ------------------------------------------ main logic ------------------------------------------
 int main(int argc, char **argv)
 {
-    // ---------------------------------------------------------- init ROS middleware ----------------------------------------------------------
+    // ------------------------------------------ init ROS middleware ------------------------------------------
     ROS_INFO("*** vision_nav start ***");
     ros::init(argc, argv, "vision_nav_node");
     ros::NodeHandle n;
@@ -142,15 +130,15 @@ int main(int argc, char **argv)
         {
             break;
         }
-        Rect ROI(0, 0, 672, 376);           // extract mono img from ZED
+        Rect ROI(0, 0, 672, 376); // extract mono img from ZED
         Mat src_mono = src(ROI);
 
         // ------------------------------------------ do initial color_detect ------------------------------------------
-        Center center_left, center_right;   // centre coord of rect box
-        int Pixel_left = 0;                 // pixel number in a rect box
+        Center center_left, center_right; // centre coord of rect box
+        int Pixel_left = 0;               // pixel number in a rect box
         int Pixel_right = 0;
 
-        int H_L = 117;                      // HSV thresh for bright orange cones
+        int H_L = 117; // HSV thresh for bright orange cones
         int H_H = 126;
         int S_L = 148;
         int S_H = 255;
@@ -209,10 +197,8 @@ int main(int argc, char **argv)
         // ------------------------------------------ motion ------------------------------------------
         if (current_step >= 36)
         {
-            //运动决策
-            //定义执行时间
 
-            //换算得到柱子的距离和相对角度
+            // get distance and orientation relative to cones
             double center_x = (center_left.x + center_right.x) / 2.0;
             double center_y = (center_left.y + center_right.y) / 2.0;
             map_transform(x_a, y_a, x_b, y_b);
@@ -236,24 +222,16 @@ int main(int argc, char **argv)
 
             if (state_machine == 0)
             {
-                //转到垂直中垂线
-                /*
-                if(flag_cacu == 0)
-                {
-                    calculate_motion_param();
-                    flag_cacu = 1;
-                }
-                 */
 
                 if (abs(angle + theta) > 0.05)
                 {
-                    //右转
+                    // turn right
                     if (theta > 0)
                     {
                         run(0, -abs(angle + theta));
                         pub.publish(msg);
                     }
-                    //左转
+                    // turn left
                     if (theta < 0)
                     {
                         run(0, abs(angle + theta));
@@ -289,7 +267,7 @@ int main(int argc, char **argv)
                 ROS_INFO("angle\t= %f", angle);
                 ROS_INFO("beta\t= %f", beta);
                 ROS_INFO("sum\t= %f", angle + beta);
-                
+
                 if (abs(angle + beta) > 0.05)
                 {
                     if (theta > 0)
@@ -319,17 +297,17 @@ int main(int argc, char **argv)
                 ROS_INFO("x_D\t= %f", x_D);
                 ROS_INFO("y_D\t= %f", y_D);
 
-                if (sqrt(pow(pos_y + x_D, 2) + pow(pos_x - y_D, 2)) < 0.5 && flag == 0)
+                if (sqrt(pow(pos_y + x_D, 2) + pow(pos_x - y_D, 2)) < 0.5 && final_approach_flag == 0)
                 {
                     pos_x_temp = pos_x;
                     pos_y_temp = pos_y;
-                    flag = 1;
+                    final_approach_flag = 1;
                 }
 
-                if (flag == 1)
+                if (final_approach_flag == 1)
                 {
                     ROS_INFO("center_y\t= %f", center_y);
-                    if (sqrt(pow(pos_x - pos_x_temp, 2) + pow(pos_y - pos_y_temp, 2)) > 1.5)
+                    if (sqrt(pow(pos_x - pos_x_temp, 2) + pow(pos_y - pos_y_temp, 2)) > 2.2)
                     {
                         break;
                     }
@@ -338,7 +316,7 @@ int main(int argc, char **argv)
                 else
                 {
                     delta_x = X0 - center_x;
-                    run(0.2, 0.005 * delta_x);
+                    run(0.2, 0.01 * delta_x);
                 }
                 pub.publish(msg);
             }
@@ -353,11 +331,12 @@ int main(int argc, char **argv)
     return 0;
 }
 
+// ------------------------------------------ function implementation below ------------------------------------------
 void HSV_threshold(Mat H, Mat S, Mat V, Mat dst, int H_L, int H_H, int S_L, int S_H, int V_L, int V_H)
 {
     int row = H.rows;
     int col = H.cols;
-    int flag = 0;
+    int final_approach_flag = 0;
     for (int i = 0; i < row; i++)
     {
         for (int j = 0; j < col; j++)
@@ -380,52 +359,6 @@ void HSV_threshold(Mat H, Mat S, Mat V, Mat dst, int H_L, int H_H, int S_L, int 
         }
     }
     imshow("binary", dst);
-}
-
-void color_thresh(Mat input)
-{
-    int pos1 = 255;
-    int pos2 = 0;
-    int pos3 = 255;
-    int pos4 = 0;
-    int pos5 = 255;
-    int pos6 = 0;
-    int H_H = 255;
-    int H_L = 0;
-    int S_H = 255;
-    int S_L = 0;
-    int V_H = 255;
-    int V_L = 0;
-    Mat HSV[3];
-    split(input, HSV);
-    Mat output1 = HSV[0].clone();
-    Mat output2 = HSV[1].clone();
-    Mat output3 = HSV[2].clone();
-    Mat res = HSV[0].clone();
-    namedWindow("res");
-    createTrackbar("H_H", "res", &pos1, 255);
-    createTrackbar("H_L", "res", &pos2, 255);
-    createTrackbar("S_H", "res", &pos3, 255);
-    createTrackbar("S_L", "res", &pos4, 255);
-    createTrackbar("V_H", "res", &pos5, 255);
-    createTrackbar("V_L", "res", &pos6, 255);
-    while (true)
-    {
-        H_H = getTrackbarPos("H_H", "res");
-        H_L = getTrackbarPos("H_L", "res");
-        S_H = getTrackbarPos("S_H", "res");
-        S_L = getTrackbarPos("S_L", "res");
-        V_H = getTrackbarPos("V_H", "res");
-        V_L = getTrackbarPos("V_L", "res");
-        HSV_threshold(HSV[0], HSV[1], HSV[2], res, H_L, H_H, S_L, S_H, V_L, V_H);
-        CvSize my_size;
-        my_size.width = 700;
-        my_size.height = 600;
-        Mat res1;
-        resize(res, res1, my_size, CV_INTER_CUBIC);
-        imshow("res", res1);
-        waitKey(1);
-    }
 }
 
 void color_detect(Mat input, Center *center_left, Center *center_right, int *Pixel_left, int *Pixel_right, int H_L, int H_H, int S_L, int S_H, int V_L, int V_H)
@@ -504,9 +437,8 @@ void color_detect(Mat input, Center *center_left, Center *center_right, int *Pix
             Area_second = boundRect[i].area();
         }
     }
-    //rectangle(S_Contours,boundRect[index].tl(),boundRect[index].br(),Scalar(255),1,8,0);
-    rectangle(input, boundRect[index_second].tl(), boundRect[index_second].br(), Scalar(255, 0, 255), 3, 8, 0);
-    rectangle(input, boundRect[index_max].tl(), boundRect[index_max].br(), Scalar(255, 0, 255), 3, 8, 0);
+    rectangle(input, boundRect[index_second].tl(), boundRect[index_second].br(), Scalar(0, 255, 0));
+    rectangle(input, boundRect[index_max].tl(), boundRect[index_max].br(), Scalar(0, 255, 0));
 
     if (boundRect[index_second].tl().x < boundRect[index_max].tl().x)
     {
@@ -553,29 +485,29 @@ bool pt_transform(Mat &img, Mat &dst, Point2d P1, Point2d P2, Point2d P3, Point2
 {
     if (img.data)
     {
-        Point2f corners[4];       //原图四个点
-        Point2f corners_trans[4]; //逆透视图四个点
+        Point2f corners[4];       // 4 pts in src img
+        Point2f corners_trans[4]; // 4 pts in inverse perspective map
 
-        //**车载场景图象的其他参数**//
+        // params of the tranform (depend on robot hardware)
         float roi_x0 = 0;
         float roi_y0 = 228;
         float ROI_HEIGHT = 30000;
         float ROI_WIDTH = 6000;
-        //************************//
 
         corners[0] = P2;
         corners[1] = P3;
         corners[2] = P1;
         corners[3] = P4;
 
-        //设定逆透视图的宽度
+        // set width of the inverse perpective img
         float IPM_WIDTH = 500;
         float N = 7;
-        //保证逆透视图的宽度大概为N个车头宽
-        float sacale = (IPM_WIDTH / N) / ROI_WIDTH;
-        float IPM_HEIGHT = ROI_HEIGHT * sacale;
 
-        //逆透视图初始化
+        // assure that the IPM width is about N times the width of robot head width
+        float scale = (IPM_WIDTH / N) / ROI_WIDTH;
+        float IPM_HEIGHT = ROI_HEIGHT * scale;
+
+        // init transform
         dst = Mat::zeros(IPM_HEIGHT + 50, IPM_WIDTH, img.type());
 
         corners_trans[0] = Point2f(IPM_WIDTH / 2 - IPM_WIDTH / (2 * N), 0);          //P2
@@ -583,7 +515,7 @@ bool pt_transform(Mat &img, Mat &dst, Point2d P1, Point2d P2, Point2d P3, Point2
         corners_trans[2] = Point2f(IPM_WIDTH / 2 - IPM_WIDTH / (2 * N), IPM_HEIGHT); //P1
         corners_trans[3] = Point2f(IPM_WIDTH / 2 + IPM_WIDTH / (2 * N), IPM_HEIGHT); //P4
 
-        //计算原图到逆透视图和逆透视图到原图的变换矩阵
+        // calculate transform matrix
         Mat warpMatrix_src2ipm = getPerspectiveTransform(corners, corners_trans);
         warpPerspective(img, dst, warpMatrix_src2ipm, dst.size());
         double a11 = warpMatrix_src2ipm.at<double>(0, 0);
@@ -599,11 +531,12 @@ bool pt_transform(Mat &img, Mat &dst, Point2d P1, Point2d P2, Point2d P3, Point2
         y_a = (a12 * x_a_temp + a22 * y_a_temp + a32) / (a13 * x_a_temp + a23 * y_a_temp + a33);
         x_b = (a11 * x_b_temp + a21 * y_b_temp + a31) / (a13 * x_b_temp + a23 * y_b_temp + a33);
         y_b = (a12 * x_b_temp + a22 * y_b_temp + a32) / (a13 * x_b_temp + a23 * y_b_temp + a33);
-        //标出两组点
+
+        // mark the pts on img
         for (int i = 0; i < 4; i++)
-            circle(img, corners[i], 5, Scalar(0, 255, 255), 4);
+            circle(img, corners[i], 5, Scalar(0, 255, 0), -1);
         for (int i = 0; i < 4; i++)
-            circle(dst, corners_trans[i], 5, Scalar(0, 255, 255), 4);
+            circle(dst, corners_trans[i], 5, Scalar(0, 255, 0), -1);
 
         imshow("box & anchor", img);
         imshow("transform result", dst);
@@ -636,4 +569,10 @@ void calculate_motion_param(void)
     L = sqrt(x_C * x_C + y_C * y_C);
     theta = atan(x_C / y_C);
     beta = atan((y_A - y_B) / (x_B - x_A));
+}
+
+void run(double x, double z)
+{
+    msg.linear.x = x;
+    msg.angular.z = z;
 }

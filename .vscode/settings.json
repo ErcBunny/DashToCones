@@ -3,6 +3,10 @@
         "algorithm": "cpp",
         "typeindex": "cpp",
         "typeinfo": "cpp",
-        "iostream": "cpp"
+        "iostream": "cpp",
+        "istream": "cpp",
+        "ostream": "cpp",
+        "core": "cpp",
+        "cmath": "cpp"
     }
 }
