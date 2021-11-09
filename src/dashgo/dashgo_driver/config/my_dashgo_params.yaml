@@ -1,0 +1,63 @@
+#port: /dev/dashgo
+port: /dev/port1
+baud: 115200
+timeout: 0.1
+rate: 50
+sensorstate_rate: 10
+slam_project_version: 1.1
+
+useImu: False
+useSonar: True
+use_base_controller: True
+base_controller_rate: 10
+
+sonar_height: 0.15
+sonar_safe_distance: 8
+sonar_dec_distance: 40.0  ##decelerate
+
+sonar0_offset_yaw: -3.14
+sonar0_offset_x: -0.1
+sonar0_offset_y: -0.04
+
+sonar1_offset_yaw: -0.87  #-50 du
+sonar1_offset_x: 0.24
+sonar1_offset_y: -0.08
+
+sonar2_offset_yaw: 0.0
+sonar2_offset_x: 0.24
+sonar2_offset_y: 0.0
+
+sonar3_offset_yaw: 0.87 #50 du
+sonar3_offset_x: 0.24
+sonar3_offset_y: 0.08
+
+sonar4_offset_yaw: 3.14
+sonar4_offset_x: -0.1
+sonar4_offset_y: 0.04
+
+# For a robot that uses base_footprint, change base_frame to base_footprint
+base_frame: base_footprint
+
+# === Robot drivetrain parameters
+wheel_diameter: 0.148
+wheel_track: 0.323
+encoder_resolution: 610
+gear_reduction: 0.975
+motors_reversed: False
+
+# === Turn and Linear
+min_rotation_speed: 0.15
+max_rotation_speed: 1.5
+rotation_accel: 0.8
+rotation_decel: 1.6
+move_accel: 0.8
+move_decel: 1.0
+primary_threshold: 0.3
+secondary_threshold: 0.2
+
+# === PID parameters
+Kp: 50
+Kd: 20
+Ki: 0
+Ko: 50
+accel_limit: 1.0

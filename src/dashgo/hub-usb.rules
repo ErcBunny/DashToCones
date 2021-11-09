@@ -1,0 +1,16 @@
+
+#hub 串口绑定规则
+SUBSYSTEM=="tty*", ATTRS{devpath}=="3.1", MODE="0666", SYMLINK+="port1"
+SUBSYSTEM=="tty*", ATTRS{devpath}=="3.4", MODE="0666", SYMLINK+="port2"
+SUBSYSTEM=="tty*", ATTRS{devpath}=="3.2", MODE="0666", SYMLINK+="port3"
+SUBSYSTEM=="tty*", ATTRS{devpath}=="3.3", MODE="0666", SYMLINK+="port4"
+
+#力策激光雷达绑定规则
+SUBSYSTEM=="usb", ATTRS{idVendor}=="16d0", ATTRS{idProduct}=="0db7", MODE:="0666", SYMLINK+="ltme01"
+
+#奥比中光摄像头绑定规则
+SUBSYSTEM=="usb", ATTR{idProduct}=="0401", ATTR{idVendor}=="2bc5", MODE:="0666", OWNER:="root", GROUP:="video", SYMLINK+="astra" 
+SUBSYSTEM=="usb", ATTR{idProduct}=="0402", ATTR{idVendor}=="2bc5", MODE:="0666", OWNER:="root", GROUP:="video", SYMLINK+="astra_s"
+SUBSYSTEM=="usb", ATTR{idProduct}=="0403", ATTR{idVendor}=="2bc5", MODE:="0666", OWNER:="root", GROUP:="video", SYMLINK+="astra_pro"
+SUBSYSTEM=="usb", ATTR{idProduct}=="0404", ATTR{idVendor}=="2bc5", MODE:="0666", OWNER:="root", GROUP:="video", SYMLINK+="astra_mini"
+SUBSYSTEM=="usb", ATTR{idProduct}=="0407", ATTR{idVendor}=="2bc5", MODE:="0666", OWNER:="root", GROUP:="video", SYMLINK+="astra_mini_s"

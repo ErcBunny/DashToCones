@@ -1,0 +1,7 @@
+#port: /dev/pathgo_imu
+port: /dev/port3
+#port: /dev/ttyS4
+imu_baudrate: 115200
+imu_freq: 100
+angle_offset: 1.00
+
