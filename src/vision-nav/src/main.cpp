@@ -2,8 +2,11 @@
 #include <iostream>
 #include <string>
 #include <algorithm>
+
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/core.hpp>
+#include <boost/thread.hpp>
+
 #include "ros/ros.h"
 #include "geometry_msgs/Twist.h"
 #include "std_msgs/Float32.h"
@@ -11,7 +14,7 @@
 #include "message_filters/subscriber.h"
 #include "message_filters/synchronizer.h"
 #include "message_filters/sync_policies/approximate_time.h"
-#include <boost/thread.hpp>
+
 #define READIMAGE_ONLY
 #define RIGHT 2
 #define LEFT 1
@@ -94,13 +97,13 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "trafficLaneTrack"); //初始化ROS节点
     ros::NodeHandle n;
     ros::Publisher pub = n.advertise<geometry_msgs::Twist>("/cmd_vel", 5); //定义dashgo机器人的速度发布器
-    /*
-    message_filters::Subscriber<std_msgs::Float32> sub_imu(n,"/imu_angle",1,ros::TransportHints().tcpNoDelay());
-    message_filters::Subscriber<nav_msgs::Odometry> sub_odom(n,"/odom",1,ros::TransportHints().tcpNoDelay());
-    typedef message_filters::sync_policies::ApproximateTime<std_msgs::Float32,nav_msgs::Odometry> syncPolicy;
-    message_filters::Synchronizer<syncPolicy> sync(syncPolicy(10),sub_imu,sub_odom);
-    sync.registerCallback(boost::bind(&imu_odom_callback,_1,_2));
-     */
+
+    // message_filters::Subscriber<std_msgs::Float32> sub_imu(n,"/imu_angle",1,ros::TransportHints().tcpNoDelay());
+    // message_filters::Subscriber<nav_msgs::Odometry> sub_odom(n,"/odom",1,ros::TransportHints().tcpNoDelay());
+    // typedef message_filters::sync_policies::ApproximateTime<std_msgs::Float32,nav_msgs::Odometry> syncPolicy;
+    // message_filters::Synchronizer<syncPolicy> sync(syncPolicy(10),sub_imu,sub_odom);
+    // sync.registerCallback(boost::bind(&imu_odom_callback,_1,_2));
+
     ros::Subscriber sub_odom = n.subscribe("/odom", 1, odom_callback);
     ros::Subscriber sub_imu = n.subscribe("/imu_angle", 1, imu_angle_callback);
 
