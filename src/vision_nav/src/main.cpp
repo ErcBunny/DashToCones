@@ -26,7 +26,7 @@ using namespace std;
 
 int threshold_y = 330;
 int step = 0;
-int flag_step = 0;
+int state_machine = 0;
 double pi = 3.1415926;
 
 int num = 0;
@@ -37,20 +37,14 @@ double pos_x_temp = 0;
 double pos_y_temp = 0;
 double angle = 0;
 geometry_msgs::Twist msg;
-int flag2 = 0;
-int flag1 = 0;
+int pt_tf_flag = 0;
+int initial_stage_pass_flag = 0;
 int X0 = 336;
-int num1 = 0;
+int current_step = 0;
 int flag_cacu = 0;
 
 int flag = 0;
 int t = 0;
-Mat door;
-Mat door_TR;
-Point2d point1(92, 343);
-Point2d point2(309, 126);
-Point2d point3(385, 126);
-Point2d point4(638, 343);
 
 double x_a;
 double y_a;
@@ -79,6 +73,10 @@ double L;
 double theta;
 double beta;
 
+int delta_x = 0;
+double z = 0.0;
+double y = 0.0;
+
 typedef struct center
 {
     int x = 0;
@@ -102,8 +100,9 @@ void run(double x, double z)
 
 int main(int argc, char **argv)
 {
-    ROS_DEBUG("vision_nav start");
-    ros::init(argc, argv, "vision_nav_node"); //初始化ROS节点
+    // ---------------------------------------------------------- init ROS middleware ----------------------------------------------------------
+    ROS_INFO("vision_nav start");
+    ros::init(argc, argv, "vision_nav_node");
     ros::NodeHandle n;
 
     ros::Publisher pub = n.advertise<geometry_msgs::Twist>("/cmd_vel", 5);
@@ -111,6 +110,7 @@ int main(int argc, char **argv)
     ros::Subscriber sub_imu = n.subscribe("/imu_angle", 1, imu_angle_callback);
     ros::Rate loop_rate(1000);
 
+    // ------------------------------------------ init camera ------------------------------------------
     VideoCapture capture;
     capture.open(0);
 
@@ -120,99 +120,81 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    // main loop
     Mat src;
     while (ros::ok())
     {
+        // ------------------------------------------ read img and crop for ROI ------------------------------------------
         capture.read(src);
         if (src.empty())
         {
             break;
         }
-        else
-        {
-            imshow("src", src);
-            waitKey(1);
-            continue;
-        }
-        Rect rect(0, 0, 672, 376);
-        //转HSV
-        Mat src_HSV;
-        //cvtColor(src, src_HSV, COLOR_RGB2HSV);
+        Rect ROI(0, 0, 672, 376);           // extract mono img from ZED
+        Mat src_mono = src(ROI);
 
-        //test picture
-        //Mat test_src = src(rect);
-        Mat test_src = imread("/home/dango/dashgo_ws/src/pass_door/door");
-        Mat test_HSV;
+        // ------------------------------------------ do initial color_detect ------------------------------------------
+        Center center_left, center_right;   // centre coord of rect box
+        int Pixel_left = 0;                 // pixel number in a rect box
+        int Pixel_right = 0;
 
-        CvSize my_size;
-        my_size.width = 700;
-        my_size.height = 600;
-        Mat test_src1;
-        //cvtColor(test_src, test_HSV, COLOR_RGB2HSV);
-
-        //色域分割，寻找阈值
-        Mat color_cut = imread("/home/zdh/dashgo_ws/src/parking/rest_HSV.png");
-        //color_thresh(color_cut);
-        int H_L = 117;
+        int H_L = 117;                      // HSV thresh for bright orange cones
         int H_H = 126;
         int S_L = 148;
         int S_H = 255;
         int V_L = 28;
         int V_H = 255;
 
-        int deta_x = 0;
-        double z = 0.0;
-        double y = 0.0;
-
-        //目标颜色检测,计算得到两个矩形框内的像素点个数，中心点坐标
-
-        //结构体Center，包含x、y
-        Center center_left, center_right;
-        //矩形框内像素点个数
-        int Pixel_left = 0;
-        int Pixel_right = 0;
-
-        //进行识别，并计算得中心点坐标和像素点个数
-        Mat test_2333 = imread("/home/zdh/dashgo_ws/src/parking/2333.png");
-        if (num1 >= 35)
+        if (current_step < 35)
         {
-            flag1 = 1;
+            ROS_INFO("initial detection");
+            color_detect(src_mono, &center_left, &center_right, &Pixel_left, &Pixel_right, H_L, H_H, S_L, S_H, V_L, V_H);
         }
         else
         {
-            color_detect(test_src, &center_left, &center_right, &Pixel_left, &Pixel_right, H_L, H_H, S_L, S_H, V_L, V_H);
+            initial_stage_pass_flag = 1;
         }
 
-        if (flag1 == 1 && flag_step == 0 && flag2 == 0)
+        // ------------------------------------------ do pt_transform after initial detection ------------------------------------------
+        if (initial_stage_pass_flag == 1 && state_machine == 0 && pt_tf_flag == 0)
         {
-            color_detect(test_src, &center_left, &center_right, &Pixel_left, &Pixel_right, H_L, H_H, S_L, S_H, V_L, V_H);
-            pt_transform(test_src, door_TR, point1, point2, point3, point4);
-            cout << "x_a = " << x_a << endl;
-            cout << "y_a = " << y_a << endl;
-            cout << "x_b = " << x_b << endl;
-            cout << "y_b = " << y_b << endl;
+            color_detect(src_mono, &center_left, &center_right, &Pixel_left, &Pixel_right, H_L, H_H, S_L, S_H, V_L, V_H);
 
-            flag2 = 1;
-        }
-        else if (flag1 == 1 && flag_step == 3)
-        {
-            color_detect(test_src, &center_left, &center_right, &Pixel_left, &Pixel_right, H_L, H_H, S_L, S_H, V_L, V_H);
+            Mat door;
+            Mat door_TR;
+            Point2d point1(92, 343);
+            Point2d point2(309, 126);
+            Point2d point3(385, 126);
+            Point2d point4(638, 343);
+            pt_transform(src_mono, door_TR, point1, point2, point3, point4);
+
+            ROS_INFO("x_a = %f", x_a);
+            ROS_INFO("y_a = %f", y_a);
+            ROS_INFO("x_b = %f", x_b);
+            ROS_INFO("y_b = %f", y_b);
+
+            pt_tf_flag = 1;
         }
 
-        //print出一次结果
-        if (num1 == 36)
+        else if (initial_stage_pass_flag == 1 && state_machine == 3)
         {
-            printf("center_left: (%d,%d) \n", center_left.x, center_left.y);
-            printf("center_right: (%d,%d) \n", center_right.x, center_right.y);
-            printf("number_left: %d \n", Pixel_left);
-            printf("number_right:%d \n", Pixel_right);
+            color_detect(src_mono, &center_left, &center_right, &Pixel_left, &Pixel_right, H_L, H_H, S_L, S_H, V_L, V_H);
+        }
+
+        // ------------------------------------------ print rect info ------------------------------------------
+        if (current_step == 36)
+        {
+            ROS_INFO("center_left\t= (%d,%d)", center_left.x, center_left.y);
+            ROS_INFO("center_right\t= (%d,%d)", center_right.x, center_right.y);
+            ROS_INFO("number_left\t= %d", Pixel_left);
+            ROS_INFO("number_right\t= %d", Pixel_right);
         }
 
         msg.linear.x = 0;
         msg.angular.z = 0;
 
-        //运动决策
-        if (num1 >= 36)
+        // ------------------------------------------ motion ------------------------------------------
+        if (current_step >= 36)
         {
             //运动决策
             //定义执行时间
@@ -220,26 +202,24 @@ int main(int argc, char **argv)
             //换算得到柱子的距离和相对角度
             double center_x = (center_left.x + center_right.x) / 2.0;
             double center_y = (center_left.y + center_right.y) / 2.0;
-            //cout<<"center_x="<<center_x<<endl;
-            //cout<<"center_y="<<center_y<<endl;
             map_transform(x_a, y_a, x_b, y_b);
 
-            cout << "x_A = " << x_A << endl;
-            cout << "y_A = " << y_A << endl;
-            cout << "x_B = " << x_B << endl;
-            cout << "y_B = " << y_B << endl;
+            ROS_INFO("x_A = %f", x_A);
+            ROS_INFO("y_A = %f", y_A);
+            ROS_INFO("x_B = %f", x_B);
+            ROS_INFO("y_B = %f", y_B);
 
-            cout << "x_a = " << x_a << endl;
-            cout << "y_a = " << y_a << endl;
-            cout << "x_b = " << x_b << endl;
-            cout << "y_b = " << y_b << endl;
+            ROS_INFO("x_a = %f", x_a);
+            ROS_INFO("y_a = %f", y_a);
+            ROS_INFO("x_b = %f", x_b);
+            ROS_INFO("y_b = %f", y_b);
 
             calculate_motion_param();
-            cout << "L=" << L << endl;
-            cout << "theta=" << theta << endl;
-            cout << "beta=" << beta << endl;
+            ROS_INFO("L\t= %f", L);
+            ROS_INFO("theta\t= %f", theta);
+            ROS_INFO("beta\t= %f", beta);
 
-            if (flag_step == 0)
+            if (state_machine == 0)
             {
                 //转到垂直中垂线
                 /*
@@ -267,11 +247,11 @@ int main(int argc, char **argv)
                 }
                 else
                 {
-                    flag_step = 1;
+                    state_machine = 1;
                 }
             }
 
-            if (flag_step == 1)
+            if (state_machine == 1)
             {
                 if (sqrt(pos_x * pos_x + pos_y * pos_y) <= L)
                 {
@@ -280,14 +260,14 @@ int main(int argc, char **argv)
                 }
                 else
                 {
-                    flag_step = 2;
+                    state_machine = 2;
                     sleep(1);
                 }
-                cout << "pos_x = " << pos_x << endl;
-                cout << "pos_y = " << pos_y << endl;
+                ROS_INFO("pos_x = %f", pos_x);
+                ROS_INFO("pos_y = %f", pos_y);
             }
 
-            if (flag_step == 2)
+            if (state_machine == 2)
             {
                 cout << "angle = " << angle << endl;
                 cout << "beta = " << beta << endl;
@@ -307,12 +287,12 @@ int main(int argc, char **argv)
                 }
                 else
                 {
-                    flag_step = 3;
+                    state_machine = 3;
                     sleep(1);
                 }
             }
 
-            if (flag_step == 3)
+            if (state_machine == 3)
             {
                 cout << "distance = " << sqrt(pow(pos_y + x_D, 2) + pow(pos_x - y_D, 2)) << endl;
                 cout << "pos_x = " << pos_x << endl;
@@ -338,14 +318,14 @@ int main(int argc, char **argv)
                 }
                 else
                 {
-                    deta_x = X0 - center_x;
-                    run(0.2, 0.005 * deta_x);
+                    delta_x = X0 - center_x;
+                    run(0.2, 0.005 * delta_x);
                 }
                 pub.publish(msg);
             }
         }
 
-        waitKey(5);
+        ROS_INFO("-------------------- loop end --------------------");
         ros::spinOnce();
         loop_rate.sleep();
     }
@@ -448,7 +428,7 @@ void color_detect(Mat input, Center *center_left, Center *center_right, int *Pix
 
     vector< vector<Point> > contours_S;
     vector<Vec4i> hierarchy_S;
-    if (num1 <= 30)
+    if (current_step <= 30)
     {
         findContours(H, contours_S, hierarchy_S, CV_RETR_TREE, CHAIN_APPROX_SIMPLE, Point());
     }
@@ -468,7 +448,7 @@ void color_detect(Mat input, Center *center_left, Center *center_right, int *Pix
         }
         drawContours(S_Contours, contours_S, i, Scalar(255), 1, 8, hierarchy_S);
     }
-    num1 += 1;
+    current_step += 1;
 
     vector< vector<Point> > contours_poly(contours_S.size());
     vector<Rect> boundRect(contours_S.size());
