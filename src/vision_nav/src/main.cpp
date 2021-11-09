@@ -1,3 +1,15 @@
+/*
+
+ * WORK OF HITSZ AUTO 2018 student group, LIYUAN NO.10 FLOOR 17
+
+ * idea and framework by LINXU CHEN and ZIXIAN ZHAO
+
+ * refinement and workspace engineering by YUEQIAN LIU
+
+ * proofreading and adding comments by HEMING LUO
+
+*/
+
 #include <stdlib.h>
 #include <iostream>
 #include <string>
@@ -101,7 +113,7 @@ void run(double x, double z)
 int main(int argc, char **argv)
 {
     // ---------------------------------------------------------- init ROS middleware ----------------------------------------------------------
-    ROS_INFO("vision_nav start");
+    ROS_INFO("*** vision_nav start ***");
     ros::init(argc, argv, "vision_nav_node");
     ros::NodeHandle n;
 
@@ -147,7 +159,7 @@ int main(int argc, char **argv)
 
         if (current_step < 35)
         {
-            ROS_INFO("initial detection");
+            ROS_INFO("*** initial detection ***");
             color_detect(src_mono, &center_left, &center_right, &Pixel_left, &Pixel_right, H_L, H_H, S_L, S_H, V_L, V_H);
         }
         else
@@ -168,6 +180,7 @@ int main(int argc, char **argv)
             Point2d point4(638, 343);
             pt_transform(src_mono, door_TR, point1, point2, point3, point4);
 
+            ROS_INFO("*** pt_transform ***");
             ROS_INFO("x_a = %f", x_a);
             ROS_INFO("y_a = %f", y_a);
             ROS_INFO("x_b = %f", x_b);
@@ -175,7 +188,6 @@ int main(int argc, char **argv)
 
             pt_tf_flag = 1;
         }
-
         else if (initial_stage_pass_flag == 1 && state_machine == 3)
         {
             color_detect(src_mono, &center_left, &center_right, &Pixel_left, &Pixel_right, H_L, H_H, S_L, S_H, V_L, V_H);
@@ -184,6 +196,7 @@ int main(int argc, char **argv)
         // ------------------------------------------ print rect info ------------------------------------------
         if (current_step == 36)
         {
+            ROS_INFO("*** rect info ***");
             ROS_INFO("center_left\t= (%d,%d)", center_left.x, center_left.y);
             ROS_INFO("center_right\t= (%d,%d)", center_right.x, center_right.y);
             ROS_INFO("number_left\t= %d", Pixel_left);
@@ -203,6 +216,8 @@ int main(int argc, char **argv)
             double center_x = (center_left.x + center_right.x) / 2.0;
             double center_y = (center_left.y + center_right.y) / 2.0;
             map_transform(x_a, y_a, x_b, y_b);
+
+            ROS_INFO("*** MOTION ***");
 
             ROS_INFO("x_A = %f", x_A);
             ROS_INFO("y_A = %f", y_A);
@@ -263,15 +278,18 @@ int main(int argc, char **argv)
                     state_machine = 2;
                     sleep(1);
                 }
+                ROS_INFO("--- state machine 1 ---");
                 ROS_INFO("pos_x = %f", pos_x);
                 ROS_INFO("pos_y = %f", pos_y);
             }
 
             if (state_machine == 2)
             {
-                cout << "angle = " << angle << endl;
-                cout << "beta = " << beta << endl;
-                cout << "angle + beta = " << angle + beta << endl;
+                ROS_INFO("--- state machine 2 ---");
+                ROS_INFO("angle\t= %f", angle);
+                ROS_INFO("beta\t= %f", beta);
+                ROS_INFO("sum\t= %f", angle + beta);
+                
                 if (abs(angle + beta) > 0.05)
                 {
                     if (theta > 0)
@@ -294,11 +312,12 @@ int main(int argc, char **argv)
 
             if (state_machine == 3)
             {
-                cout << "distance = " << sqrt(pow(pos_y + x_D, 2) + pow(pos_x - y_D, 2)) << endl;
-                cout << "pos_x = " << pos_x << endl;
-                cout << "pos_y = " << pos_y << endl;
-                cout << "x_D = " << x_D << endl;
-                cout << "y_D = " << y_D << endl;
+                ROS_INFO("--- state machine 3 ---");
+                ROS_INFO("distance\t= %f", sqrt(pow(pos_y + x_D, 2) + pow(pos_x - y_D, 2)));
+                ROS_INFO("pos_x\t= %f", pos_x);
+                ROS_INFO("pos_y\t= %f", pos_y);
+                ROS_INFO("x_D\t= %f", x_D);
+                ROS_INFO("y_D\t= %f", y_D);
 
                 if (sqrt(pow(pos_y + x_D, 2) + pow(pos_x - y_D, 2)) < 0.5 && flag == 0)
                 {
@@ -309,7 +328,7 @@ int main(int argc, char **argv)
 
                 if (flag == 1)
                 {
-                    cout << "center_y=" << center_y << endl;
+                    ROS_INFO("center_y\t= %f", center_y);
                     if (sqrt(pow(pos_x - pos_x_temp, 2) + pow(pos_y - pos_y_temp, 2)) > 1.5)
                     {
                         break;
@@ -325,6 +344,7 @@ int main(int argc, char **argv)
             }
         }
 
+        waitKey(1);
         ROS_INFO("-------------------- loop end --------------------");
         ros::spinOnce();
         loop_rate.sleep();
@@ -359,7 +379,7 @@ void HSV_threshold(Mat H, Mat S, Mat V, Mat dst, int H_L, int H_H, int S_L, int 
             }
         }
     }
-    imshow("111111", dst);
+    imshow("binary", dst);
 }
 
 void color_thresh(Mat input)
@@ -515,15 +535,13 @@ void color_detect(Mat input, Center *center_left, Center *center_right, int *Pix
         y_b_temp = boundRect[index_second].br().y;
     }
 
-    imshow("result", input);
+    imshow("detection", input);
 }
 
 void odom_callback(const nav_msgs::Odometry::ConstPtr &odom)
 {
     pos_x = odom->pose.pose.position.x;
     pos_y = odom->pose.pose.position.y;
-    //cout<<"pos_x = "<<pos_x<<endl;
-    //cout<<"pos_y = "<<pos_y<<endl;
 }
 
 void imu_angle_callback(const std_msgs::Float32::ConstPtr &msg)
@@ -587,12 +605,12 @@ bool pt_transform(Mat &img, Mat &dst, Point2d P1, Point2d P2, Point2d P3, Point2
         for (int i = 0; i < 4; i++)
             circle(dst, corners_trans[i], 5, Scalar(0, 255, 255), 4);
 
-        imshow("img", img);
-        imshow("dst", dst);
+        imshow("box & anchor", img);
+        imshow("transform result", dst);
     }
     else
     {
-        cout << "NO IMAGE!!!" << endl;
+        ROS_WARN("NO IMAGE");
         return false;
     }
 

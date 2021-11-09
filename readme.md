@@ -31,6 +31,7 @@
    ```
    roslaunch dashgo_driver driver_imu.launch
    rosrun vision_nav vision_nav_node
+   # or use lazy_button.sh
    ```
 
    
