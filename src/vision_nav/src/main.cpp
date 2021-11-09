@@ -43,6 +43,15 @@ int X0 = 336;
 int num1 = 0;
 int flag_cacu = 0;
 
+int flag = 0;
+int t = 0;
+Mat door;
+Mat door_TR;
+Point2d point1(92, 343);
+Point2d point2(309, 126);
+Point2d point3(385, 126);
+Point2d point4(638, 343);
+
 double x_a;
 double y_a;
 double x_b;
@@ -76,15 +85,15 @@ typedef struct center
     int y = 0;
 } Center;
 
-void MY_Color_Thres(Mat input);
-void my_threshold(Mat H, Mat S, Mat V, Mat dst, int H_L, int H_H, int S_L, int S_H, int V_L, int V_H);
-void MY_COlor_Detector(Mat input, Center *center_left, Center *center_right, int *Pixel_left, int *Pixel_right, int H_L, int H_H, int S_L, int S_H, int V_L, int V_H);
+void color_thresh(Mat input);
+void HSV_threshold(Mat H, Mat S, Mat V, Mat dst, int H_L, int H_H, int S_L, int S_H, int V_L, int V_H);
+void color_detect(Mat input, Center *center_left, Center *center_right, int *Pixel_left, int *Pixel_right, int H_L, int H_H, int S_L, int S_H, int V_L, int V_H);
 void imu_angle_callback(const std_msgs::Float32::ConstPtr &msg);
 void odom_callback(const nav_msgs::Odometry::ConstPtr &odom);
 void imu_odom_callback(const std_msgs::Float32::ConstPtr &imu, const nav_msgs::Odometry::ConstPtr &odom);
-bool PT_Transform(Mat &img, Mat &dst, Point2d P1, Point2d P2, Point2d P3, Point2d P4);
-void Map_Transform(int xa, int ya, int xb, int yb);
-void L_theta_caculate(void);
+bool pt_transform(Mat &img, Mat &dst, Point2d P1, Point2d P2, Point2d P3, Point2d P4);
+void map_transform(int xa, int ya, int xb, int yb);
+void calculate_motion_param(void);
 void run(double x, double z)
 {
     msg.linear.x = x;
@@ -93,56 +102,45 @@ void run(double x, double z)
 
 int main(int argc, char **argv)
 {
-    ROS_WARN("*****START*****");
-    ros::init(argc, argv, "trafficLaneTrack"); //初始化ROS节点
+    ROS_DEBUG("vision_nav start");
+    ros::init(argc, argv, "vision_nav_node"); //初始化ROS节点
     ros::NodeHandle n;
-    ros::Publisher pub = n.advertise<geometry_msgs::Twist>("/cmd_vel", 5); //定义dashgo机器人的速度发布器
 
-    // message_filters::Subscriber<std_msgs::Float32> sub_imu(n,"/imu_angle",1,ros::TransportHints().tcpNoDelay());
-    // message_filters::Subscriber<nav_msgs::Odometry> sub_odom(n,"/odom",1,ros::TransportHints().tcpNoDelay());
-    // typedef message_filters::sync_policies::ApproximateTime<std_msgs::Float32,nav_msgs::Odometry> syncPolicy;
-    // message_filters::Synchronizer<syncPolicy> sync(syncPolicy(10),sub_imu,sub_odom);
-    // sync.registerCallback(boost::bind(&imu_odom_callback,_1,_2));
-
+    ros::Publisher pub = n.advertise<geometry_msgs::Twist>("/cmd_vel", 5);
     ros::Subscriber sub_odom = n.subscribe("/odom", 1, odom_callback);
     ros::Subscriber sub_imu = n.subscribe("/imu_angle", 1, imu_angle_callback);
+    ros::Rate loop_rate(1000);
 
-    //Before the use of camera, you can test ur program with images first: imread()
     VideoCapture capture;
-    capture.open(0); //打开zed相机，如果要打开笔记本上的摄像头，需要改为0
+    capture.open(0);
 
     if (!capture.isOpened())
     {
-        printf("摄像头没有正常打开，重新插拔工控机上当摄像头\n");
-        return 0;
+        ROS_ERROR("unable to open camera");
+        return -1;
     }
 
-    int flag = 0;
-    Mat src_frame;
-    ros::Rate loop_rate(1000);
-    int t = 0;
-    Mat door;
-    Mat door_TR;
-    Point2d point1(92, 343);
-    Point2d point2(309, 126);
-    Point2d point3(385, 126);
-    Point2d point4(638, 343);
-    waitKey(5);
-
+    Mat src;
     while (ros::ok())
     {
-        capture.read(src_frame);
-        if (src_frame.empty())
+        capture.read(src);
+        if (src.empty())
         {
             break;
+        }
+        else
+        {
+            imshow("src", src);
+            waitKey(1);
+            continue;
         }
         Rect rect(0, 0, 672, 376);
         //转HSV
         Mat src_HSV;
-        //cvtColor(src_frame, src_HSV, COLOR_RGB2HSV);
+        //cvtColor(src, src_HSV, COLOR_RGB2HSV);
 
         //test picture
-        //Mat test_src = src_frame(rect);
+        //Mat test_src = src(rect);
         Mat test_src = imread("/home/dango/dashgo_ws/src/pass_door/door");
         Mat test_HSV;
 
@@ -154,7 +152,7 @@ int main(int argc, char **argv)
 
         //色域分割，寻找阈值
         Mat color_cut = imread("/home/zdh/dashgo_ws/src/parking/rest_HSV.png");
-        //MY_Color_Thres(color_cut);
+        //color_thresh(color_cut);
         int H_L = 117;
         int H_H = 126;
         int S_L = 148;
@@ -182,13 +180,13 @@ int main(int argc, char **argv)
         }
         else
         {
-            MY_COlor_Detector(test_src, &center_left, &center_right, &Pixel_left, &Pixel_right, H_L, H_H, S_L, S_H, V_L, V_H);
+            color_detect(test_src, &center_left, &center_right, &Pixel_left, &Pixel_right, H_L, H_H, S_L, S_H, V_L, V_H);
         }
 
         if (flag1 == 1 && flag_step == 0 && flag2 == 0)
         {
-            MY_COlor_Detector(test_src, &center_left, &center_right, &Pixel_left, &Pixel_right, H_L, H_H, S_L, S_H, V_L, V_H);
-            PT_Transform(test_src, door_TR, point1, point2, point3, point4);
+            color_detect(test_src, &center_left, &center_right, &Pixel_left, &Pixel_right, H_L, H_H, S_L, S_H, V_L, V_H);
+            pt_transform(test_src, door_TR, point1, point2, point3, point4);
             cout << "x_a = " << x_a << endl;
             cout << "y_a = " << y_a << endl;
             cout << "x_b = " << x_b << endl;
@@ -198,7 +196,7 @@ int main(int argc, char **argv)
         }
         else if (flag1 == 1 && flag_step == 3)
         {
-            MY_COlor_Detector(test_src, &center_left, &center_right, &Pixel_left, &Pixel_right, H_L, H_H, S_L, S_H, V_L, V_H);
+            color_detect(test_src, &center_left, &center_right, &Pixel_left, &Pixel_right, H_L, H_H, S_L, S_H, V_L, V_H);
         }
 
         //print出一次结果
@@ -224,7 +222,7 @@ int main(int argc, char **argv)
             double center_y = (center_left.y + center_right.y) / 2.0;
             //cout<<"center_x="<<center_x<<endl;
             //cout<<"center_y="<<center_y<<endl;
-            Map_Transform(x_a, y_a, x_b, y_b);
+            map_transform(x_a, y_a, x_b, y_b);
 
             cout << "x_A = " << x_A << endl;
             cout << "y_A = " << y_A << endl;
@@ -236,7 +234,7 @@ int main(int argc, char **argv)
             cout << "x_b = " << x_b << endl;
             cout << "y_b = " << y_b << endl;
 
-            L_theta_caculate();
+            calculate_motion_param();
             cout << "L=" << L << endl;
             cout << "theta=" << theta << endl;
             cout << "beta=" << beta << endl;
@@ -247,7 +245,7 @@ int main(int argc, char **argv)
                 /*
                 if(flag_cacu == 0)
                 {
-                    L_theta_caculate();
+                    calculate_motion_param();
                     flag_cacu = 1;
                 }
                  */
@@ -355,7 +353,7 @@ int main(int argc, char **argv)
     return 0;
 }
 
-void my_threshold(Mat H, Mat S, Mat V, Mat dst, int H_L, int H_H, int S_L, int S_H, int V_L, int V_H)
+void HSV_threshold(Mat H, Mat S, Mat V, Mat dst, int H_L, int H_H, int S_L, int S_H, int V_L, int V_H)
 {
     int row = H.rows;
     int col = H.cols;
@@ -384,7 +382,7 @@ void my_threshold(Mat H, Mat S, Mat V, Mat dst, int H_L, int H_H, int S_L, int S
     imshow("111111", dst);
 }
 
-void MY_Color_Thres(Mat input)
+void color_thresh(Mat input)
 {
     int pos1 = 255;
     int pos2 = 0;
@@ -419,7 +417,7 @@ void MY_Color_Thres(Mat input)
         S_L = getTrackbarPos("S_L", "res");
         V_H = getTrackbarPos("V_H", "res");
         V_L = getTrackbarPos("V_L", "res");
-        my_threshold(HSV[0], HSV[1], HSV[2], res, H_L, H_H, S_L, S_H, V_L, V_H);
+        HSV_threshold(HSV[0], HSV[1], HSV[2], res, H_L, H_H, S_L, S_H, V_L, V_H);
         CvSize my_size;
         my_size.width = 700;
         my_size.height = 600;
@@ -430,7 +428,7 @@ void MY_Color_Thres(Mat input)
     }
 }
 
-void MY_COlor_Detector(Mat input, Center *center_left, Center *center_right, int *Pixel_left, int *Pixel_right, int H_L, int H_H, int S_L, int S_H, int V_L, int V_H)
+void color_detect(Mat input, Center *center_left, Center *center_right, int *Pixel_left, int *Pixel_right, int H_L, int H_H, int S_L, int S_H, int V_L, int V_H)
 {
     Mat input_HSV;
     cvtColor(input, input_HSV, COLOR_RGB2HSV);
@@ -441,7 +439,7 @@ void MY_COlor_Detector(Mat input, Center *center_left, Center *center_right, int
     Mat V = HSV[2].clone();
     Mat res = HSV[0].clone();
 
-    my_threshold(HSV[0], HSV[1], HSV[2], res, H_L, H_H, S_L, S_H, V_L, V_H);
+    HSV_threshold(HSV[0], HSV[1], HSV[2], res, H_L, H_H, S_L, S_H, V_L, V_H);
 
     Mat S_temp = S.clone();
     Mat res_temp = res.clone();
@@ -553,7 +551,7 @@ void imu_angle_callback(const std_msgs::Float32::ConstPtr &msg)
     angle = msg->data * 2.0;
 }
 
-bool PT_Transform(Mat &img, Mat &dst, Point2d P1, Point2d P2, Point2d P3, Point2d P4)
+bool pt_transform(Mat &img, Mat &dst, Point2d P1, Point2d P2, Point2d P3, Point2d P4)
 {
     if (img.data)
     {
@@ -621,7 +619,7 @@ bool PT_Transform(Mat &img, Mat &dst, Point2d P1, Point2d P2, Point2d P3, Point2
     return true;
 }
 
-void Map_Transform(int xa, int ya, int xb, int yb)
+void map_transform(int xa, int ya, int xb, int yb)
 {
     x_A = (xa - xo) / K;
     x_B = (xb - xo) / K;
@@ -631,7 +629,7 @@ void Map_Transform(int xa, int ya, int xb, int yb)
     y_D = (y_A + y_B) / 2.0;
 }
 
-void L_theta_caculate(void)
+void calculate_motion_param(void)
 {
     double alpha;
     alpha = (y_B * y_B - y_A * y_A + x_B * x_B - x_A * x_A) / (2 * ((y_B - y_A) * (y_B - y_A) + (x_B - x_A) * (x_B - x_A)));
