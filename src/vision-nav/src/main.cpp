@@ -445,7 +445,7 @@ void MY_COlor_Detector(Mat input, Center *center_left, Center *center_right, int
     Mat res_canny;
     Canny(res, res_canny, 50, 150);
 
-    vector<vector<Point>> contours_S;
+    vector< vector<Point> > contours_S;
     vector<Vec4i> hierarchy_S;
     if (num1 <= 30)
     {
@@ -469,7 +469,7 @@ void MY_COlor_Detector(Mat input, Center *center_left, Center *center_right, int
     }
     num1 += 1;
 
-    vector<vector<Point>> contours_poly(contours_S.size());
+    vector< vector<Point> > contours_poly(contours_S.size());
     vector<Rect> boundRect(contours_S.size());
     vector<Point2f> center(contours_S.size());
     vector<float> radius(contours_S.size());
