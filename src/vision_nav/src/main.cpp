@@ -245,7 +245,7 @@ int main(int argc, char **argv)
                     sleep(1);
                 }
 
-                ROS_INFO("--- state machine 1: turn towards mid-extension point ---")
+                ROS_INFO("--- state machine 1: turn towards mid-extension point ---");
 
             }
             
