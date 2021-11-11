@@ -72,6 +72,11 @@
         $$
 
    3. 运动状态机
+   
+      1. 根据$\theta$转向C点
+      2. 依靠里程计直走$L$距离到达C点
+      3. 根据$\beta$转向朝向D点
+      4. 视觉比例控制达到D点再开环运行一段时间后停止
 
 
 ## 方案设计
@@ -446,7 +451,7 @@
           // go straight line to mid-extension point
           if (state_machine == 1)
           {
-              if (sqrt(pos_x * pos_x + pos_y * pos_y) <= L)
+              if (sqrt(pos_x * pos_x + pos_y * pos_y) <= L + 0.25)
               {
                   run(0.3, 0);
                   pub.publish(msg);
@@ -469,7 +474,7 @@
               ROS_INFO("beta\t= %f", beta);
               ROS_INFO("sum\t= %f", angle + beta);
       
-              if (abs(angle + beta) > 0.05)
+              if (abs(angle + beta) > 0.1)
               {
                   if (theta > 0)
                   {
