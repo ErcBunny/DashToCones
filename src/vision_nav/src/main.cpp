@@ -2,11 +2,11 @@
 
  * WORK OF HITSZ AUTO 2018 student group, LIYUAN NO.10 FLOOR 17
 
- * idea and framework by LINXU CHEN and ZIXIAN ZHAO
+ * idea and architecture by LINGXU CHEN and ZIXIAN ZHAO
 
- * refinement and workspace engineering by YUEQIAN LIU
+ * code refinement and comments by YUEQIAN LIU
 
- * proofreading and adding comments by HEMING LUO
+ * proofreading by HEMING LUO 
 
 */
 
@@ -33,14 +33,14 @@ int step = 0;
 int state_machine = 0;
 double pi = 3.1415926;
 
-double pos_x = 0;
+double pos_x = 0; // position of Dashgo from odom feedback, world frame
 double pos_y = 0;
 double pos_x_temp = 0;
 double pos_y_temp = 0;
 double angle = 0;
 
 geometry_msgs::Twist msg;
-int pt_tf_flag = 0;
+int pt_flag = 0;
 int initial_stage_pass_flag = 0;
 int X0 = 336;
 int current_step = 0;
@@ -49,12 +49,17 @@ int flag_cacu = 0;
 int final_approach_flag = 0;
 int t = 0;
 
-double x_a;
+double x_a_temp; // target position, pixel frame, before pt, obtained from color_detect()
+double y_a_temp;
+double x_b_temp;
+double y_b_temp;
+
+double x_a; // target position, pixel frame, after pt, obtained from perpective_transform()
 double y_a;
 double x_b;
 double y_b;
 
-double x_A;
+double x_A; // target and reference position，world frame, obtained from get_target_coords()
 double y_A;
 double x_B;
 double y_B;
@@ -63,16 +68,11 @@ double y_C;
 double x_D;
 double y_D;
 
-double x_a_temp;
-double y_a_temp;
-double x_b_temp;
-double y_b_temp;
-
-double K = 90;
+double K = 90; // params for get_target_coords()
 double xo = 247;
 double yo = 363;
 
-double L;
+double L; // distance from initial position to mid-extension point
 double theta;
 double beta;
 
@@ -89,15 +89,15 @@ typedef struct center
 // ------------------------------------------ function declaration (deprecated in a large main.cpp) ------------------------------------------
 void HSV_threshold(Mat H, Mat S, Mat V, Mat dst, int H_L, int H_H, int S_L, int S_H, int V_L, int V_H);
 void color_detect(Mat input, Center *center_left, Center *center_right, int *Pixel_left, int *Pixel_right, int H_L, int H_H, int S_L, int S_H, int V_L, int V_H);
-void imu_angle_callback(const std_msgs::Float32::ConstPtr &msg);
-void odom_callback(const nav_msgs::Odometry::ConstPtr &odom);
-void imu_odom_callback(const std_msgs::Float32::ConstPtr &imu, const nav_msgs::Odometry::ConstPtr &odom);
-bool pt_transform(Mat &img, Mat &dst, Point2d P1, Point2d P2, Point2d P3, Point2d P4);
-void map_transform(int xa, int ya, int xb, int yb);
+bool perspective_transform(Mat &img, Mat &dst, Point2d P1, Point2d P2, Point2d P3, Point2d P4);
+void get_target_coords(int xa, int ya, int xb, int yb);
+
 void calculate_motion_param(void);
 void run(double x, double z);
 
-// ------------------------------------------ main logic ------------------------------------------
+void imu_angle_callback(const std_msgs::Float32::ConstPtr &msg);
+void odom_callback(const nav_msgs::Odometry::ConstPtr &odom);
+
 int main(int argc, char **argv)
 {
     // ------------------------------------------ init ROS middleware ------------------------------------------
@@ -120,7 +120,7 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    // main loop
+    // ------------------------------------------ main loop ------------------------------------------
     Mat src;
     while (ros::ok())
     {
@@ -133,7 +133,6 @@ int main(int argc, char **argv)
         Rect ROI(0, 0, 672, 376); // extract mono img from ZED
         Mat src_mono = src(ROI);
 
-        // ------------------------------------------ do initial color_detect ------------------------------------------
         Center center_left, center_right; // centre coord of rect box
         int Pixel_left = 0;               // pixel number in a rect box
         int Pixel_right = 0;
@@ -145,6 +144,7 @@ int main(int argc, char **argv)
         int V_L = 28;
         int V_H = 255;
 
+        // ------------------------------------------ skip color glitches ------------------------------------------
         if (current_step < 35)
         {
             ROS_INFO("*** initial detection ***");
@@ -155,33 +155,33 @@ int main(int argc, char **argv)
             initial_stage_pass_flag = 1;
         }
 
-        // ------------------------------------------ do pt_transform after initial detection ------------------------------------------
-        if (initial_stage_pass_flag == 1 && state_machine == 0 && pt_tf_flag == 0)
+        // ------------------------------------------ detect and perspective transform ------------------------------------------
+        if (initial_stage_pass_flag == 1 && state_machine == 0 && pt_flag == 0)
         {
             color_detect(src_mono, &center_left, &center_right, &Pixel_left, &Pixel_right, H_L, H_H, S_L, S_H, V_L, V_H);
 
-            Mat door;
             Mat door_TR;
             Point2d point1(92, 343);
             Point2d point2(309, 126);
             Point2d point3(385, 126);
             Point2d point4(638, 343);
-            pt_transform(src_mono, door_TR, point1, point2, point3, point4);
+            perspective_transform(src_mono, door_TR, point1, point2, point3, point4);
 
-            ROS_INFO("*** pt_transform ***");
+            ROS_INFO("*** perspective transform ***");
             ROS_INFO("x_a = %f", x_a);
             ROS_INFO("y_a = %f", y_a);
             ROS_INFO("x_b = %f", x_b);
             ROS_INFO("y_b = %f", y_b);
 
-            pt_tf_flag = 1;
+            pt_flag = 1;
         }
+        // ------------------------------------------ visual feedback at the final approach state ------------------------------------------
         else if (initial_stage_pass_flag == 1 && state_machine == 3)
         {
             color_detect(src_mono, &center_left, &center_right, &Pixel_left, &Pixel_right, H_L, H_H, S_L, S_H, V_L, V_H);
         }
 
-        // ------------------------------------------ print rect info ------------------------------------------
+        // ------------------------------------------ print detection result ------------------------------------------
         if (current_step == 36)
         {
             ROS_INFO("*** rect info ***");
@@ -201,7 +201,7 @@ int main(int argc, char **argv)
             // get distance and orientation relative to cones
             double center_x = (center_left.x + center_right.x) / 2.0;
             double center_y = (center_left.y + center_right.y) / 2.0;
-            map_transform(x_a, y_a, x_b, y_b);
+            get_target_coords(x_a, y_a, x_b, y_b);
 
             ROS_INFO("*** MOTION ***");
 
@@ -220,10 +220,11 @@ int main(int argc, char **argv)
             ROS_INFO("theta\t= %f", theta);
             ROS_INFO("beta\t= %f", beta);
 
+            // turn towards mid-extension point
             if (state_machine == 0)
             {
 
-                if (abs(angle + theta) > 0.05)
+                if (abs(angle + theta) > 0.05) // dead zone of angle deviation
                 {
                     // turn right
                     if (theta > 0)
@@ -241,9 +242,14 @@ int main(int argc, char **argv)
                 else
                 {
                     state_machine = 1;
+                    sleep(1);
                 }
-            }
 
+                ROS_INFO("--- state machine 1: turn towards mid-extension point ---")
+
+            }
+            
+            // go straight line to mid-extension point
             if (state_machine == 1)
             {
                 if (sqrt(pos_x * pos_x + pos_y * pos_y) <= L)
@@ -256,14 +262,15 @@ int main(int argc, char **argv)
                     state_machine = 2;
                     sleep(1);
                 }
-                ROS_INFO("--- state machine 1 ---");
+                ROS_INFO("--- state machine 1: go straight line to mid-extension point ---");
                 ROS_INFO("pos_x = %f", pos_x);
                 ROS_INFO("pos_y = %f", pos_y);
             }
 
+            // turn towards mid point between the cones
             if (state_machine == 2)
             {
-                ROS_INFO("--- state machine 2 ---");
+                ROS_INFO("--- state machine 2: turn towards mid point between the cones ---");
                 ROS_INFO("angle\t= %f", angle);
                 ROS_INFO("beta\t= %f", beta);
                 ROS_INFO("sum\t= %f", angle + beta);
@@ -287,16 +294,32 @@ int main(int argc, char **argv)
                     sleep(1);
                 }
             }
-
+            
+            // go through the cones with visual feedback
             if (state_machine == 3)
             {
-                ROS_INFO("--- state machine 3 ---");
+                ROS_INFO("--- state machine 3: go through the cones with visual feedback ---");
                 ROS_INFO("distance\t= %f", sqrt(pow(pos_y + x_D, 2) + pow(pos_x - y_D, 2)));
                 ROS_INFO("pos_x\t= %f", pos_x);
                 ROS_INFO("pos_y\t= %f", pos_y);
                 ROS_INFO("x_D\t= %f", x_D);
                 ROS_INFO("y_D\t= %f", y_D);
 
+                if(final_approach_flag != 1)
+                {
+                    delta_x = X0 - center_x; // X0=336=center of the pixel frame, center_x is updated from color_detect()
+                    run(0.2, 0.01 * delta_x); // angular velocity feedback
+                }
+                else // in final approach mode, go blind without feedback for 2.2m then stop
+                {
+                    if (sqrt(pow(pos_x - pos_x_temp, 2) + pow(pos_y - pos_y_temp, 2)) > 2.2)
+                    {
+                        break;
+                    }
+                    run(0.2, 0);
+                }
+
+                // if is close enough to the mid point D, enter final approach mode, the point of transition is marked as temp
                 if (sqrt(pow(pos_y + x_D, 2) + pow(pos_x - y_D, 2)) < 0.5 && final_approach_flag == 0)
                 {
                     pos_x_temp = pos_x;
@@ -304,20 +327,6 @@ int main(int argc, char **argv)
                     final_approach_flag = 1;
                 }
 
-                if (final_approach_flag == 1)
-                {
-                    ROS_INFO("center_y\t= %f", center_y);
-                    if (sqrt(pow(pos_x - pos_x_temp, 2) + pow(pos_y - pos_y_temp, 2)) > 2.2)
-                    {
-                        break;
-                    }
-                    run(0.2, 0);
-                }
-                else
-                {
-                    delta_x = X0 - center_x;
-                    run(0.2, 0.01 * delta_x);
-                }
                 pub.publish(msg);
             }
         }
@@ -468,20 +477,10 @@ void color_detect(Mat input, Center *center_left, Center *center_right, int *Pix
     }
 
     imshow("detection", input);
+    waitKey(1);
 }
 
-void odom_callback(const nav_msgs::Odometry::ConstPtr &odom)
-{
-    pos_x = odom->pose.pose.position.x;
-    pos_y = odom->pose.pose.position.y;
-}
-
-void imu_angle_callback(const std_msgs::Float32::ConstPtr &msg)
-{
-    angle = msg->data * 2.0;
-}
-
-bool pt_transform(Mat &img, Mat &dst, Point2d P1, Point2d P2, Point2d P3, Point2d P4)
+bool perspective_transform(Mat &img, Mat &dst, Point2d P1, Point2d P2, Point2d P3, Point2d P4)
 {
     if (img.data)
     {
@@ -550,12 +549,14 @@ bool pt_transform(Mat &img, Mat &dst, Point2d P1, Point2d P2, Point2d P3, Point2
     return true;
 }
 
-void map_transform(int xa, int ya, int xb, int yb)
+void get_target_coords(int xa, int ya, int xb, int yb)
 {
     x_A = (xa - xo) / K;
-    x_B = (xb - xo) / K;
     y_A = (yo - ya) / K + 0.35;
+
+    x_B = (xb - xo) / K;
     y_B = (yo - yb) / K + 0.35;
+
     x_D = (x_A + x_B) / 2.0;
     y_D = (y_A + y_B) / 2.0;
 }
@@ -575,4 +576,15 @@ void run(double x, double z)
 {
     msg.linear.x = x;
     msg.angular.z = z;
+}
+
+void odom_callback(const nav_msgs::Odometry::ConstPtr &odom)
+{
+    pos_x = odom->pose.pose.position.x;
+    pos_y = odom->pose.pose.position.y;
+}
+
+void imu_angle_callback(const std_msgs::Float32::ConstPtr &msg)
+{
+    angle = msg->data * 2.0;
 }
