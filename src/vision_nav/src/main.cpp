@@ -252,7 +252,7 @@ int main(int argc, char **argv)
             // go straight line to mid-extension point
             if (state_machine == 1)
             {
-                if (sqrt(pos_x * pos_x + pos_y * pos_y) <= L)
+                if (sqrt(pos_x * pos_x + pos_y * pos_y) <= L + 0.25)
                 {
                     run(0.3, 0);
                     pub.publish(msg);
@@ -275,7 +275,7 @@ int main(int argc, char **argv)
                 ROS_INFO("beta\t= %f", beta);
                 ROS_INFO("sum\t= %f", angle + beta);
 
-                if (abs(angle + beta) > 0.05)
+                if (abs(angle + beta) > 0.1)
                 {
                     if (theta > 0)
                     {
