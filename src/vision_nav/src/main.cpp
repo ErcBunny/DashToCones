@@ -310,9 +310,9 @@ int main(int argc, char **argv)
                     delta_x = X0 - center_x; // X0=336=center of the pixel frame, center_x is updated from color_detect()
                     run(0.2, 0.01 * delta_x); // angular velocity feedback
                 }
-                else // in final approach mode, go blind without feedback for 2.2m then stop
+                else // in final approach mode, go blind without feedback for 2m then stop
                 {
-                    if (sqrt(pow(pos_x - pos_x_temp, 2) + pow(pos_y - pos_y_temp, 2)) > 2.2)
+                    if (sqrt(pow(pos_x - pos_x_temp, 2) + pow(pos_y - pos_y_temp, 2)) > 2)
                     {
                         break;
                     }
