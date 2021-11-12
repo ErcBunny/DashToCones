@@ -1,6 +1,6 @@
 # HISTZ DIP Coursework Documentation
 
-* Astern, achieve self-positioning by recognizing two colorful column and drive the robot through the middle
+* Astern: achieve self-positioning by recognizing two colorful column and drive the robot through the middle
 * School of Mechanical Engineering and Automation
 * Thu Nov 11, 2021
 * Yueqian Liu
@@ -20,9 +20,19 @@
    1. 将色彩空间从BGR转换到HSV
    2. 对HSV每一个值设定范围，筛选出特定颜色的区域
    3. 对联通域进行筛选，得到符合要求的联通域
-   4. 作最小外接矩形并获取矩形中心点像素坐标
+   4. 作最小外接矩形并获取矩形底边中心点像素坐标$(x_s,y_s)$
    
 2. **用透视变换获取场景俯视图**
+
+   1. 在未变换图像上以地砖的格子为参考选取一个等腰梯形的顶点，同时指定变换后四个点期望的位置
+
+   2. 用上述确定的两组点调用`cv::getPerspectiveTransform`获取变换矩阵$\bold{A}$，调用`cv::warpPerspective`可以获得变换后的图像
+
+   3. 使用$\bold{A}$和之前识别获得的$(x_s,y_s)$计算矩形底边中心点变换后的像素坐标$(x_p,y_p)$
+      $$
+      x_p=\frac{\bold{A}_{11}x_s+\bold{A}_{21}y_s+\bold{A}_{31}}{\bold{A}_{13}x_s+\bold{A}_{23}y_s+\bold{A}_{33}}\\
+      y_p=\frac{\bold{A}_{12}x_s+\bold{A}_{22}y_s+\bold{A}_{32}}{\bold{A}_{13}x_s+\bold{A}_{23}y_s+\bold{A}_{33}}
+      $$
 
 3. **作简单坐标变换获取目标和路径点的世界坐标**
 
@@ -53,7 +63,7 @@
 
    2. 参数计算
 
-      <img src="./motion.png" alt="motion" style="zoom:25%;" />
+      <img src="./motion.png" alt="motion" style="zoom:30%;" />
 
       * 计算中某个中间变量为
         $$
@@ -72,7 +82,7 @@
         $$
 
    3. 运动状态机
-   
+
       1. 根据$\theta$转向C点
       2. 依靠里程计直走$L$距离到达C点
       3. 根据$\beta$转向朝向D点
@@ -84,7 +94,7 @@
 1. **plug-and-play工程**
 
    1. https://gitee.com/yueqianliu/dash-to-cones
-   2. 在一般环境配置OK的情况下，clone下来直接运行`lazy_button.sh`即可，详见仓库的`readme.md`
+   2. <u>*在一般环境配置OK的情况下*</u>，clone下来直接运行`lazy_button.sh`即可，详见仓库的`readme.md`
    
 2. **用颜色识别获取目标的原始像素坐标**
 
@@ -261,7 +271,7 @@
               Point2f corners[4];       // 4 pts in src img
               Point2f corners_trans[4]; // 4 pts in inverse perspective map
       
-              // params of the tranform (depend on robot hardware)
+              // params of the tranform
               float roi_x0 = 0;
               float roi_y0 = 228;
               float ROI_HEIGHT = 30000;
@@ -338,6 +348,10 @@
       > 输入四个点为变换参考点
       >
       > 与具体相机参数和安装位姿有关
+      >
+      > 具体选取方法为在未变换的图像上以地砖格子为参考选取一个等腰梯形的顶点
+      >
+      > 期望变换后图像中的参考点变成一个矩形的顶点
 
 4. **作简单坐标变换获取目标和路径点的世界坐标**
 
@@ -533,13 +547,50 @@
 
 ## 实验验证
 
+1. **视频在这：https://gitee.com/yueqianliu/dash-to-cones/blob/master/doc/demo.mov**
 
+2. **目标检测**
+
+   <img src="./binary.png" alt="binary" style="zoom:20%;" /> <img src="./box.png" alt="box" style="zoom:20%;" />
+
+3. **透视变换**
+
+   <img src="./prePT.png" alt="before PT" style="zoom:20%;" /> <img src="./postPT.png" alt="after PT" style="zoom:25%;" />
 
 ## 结论
 
+1. **通过下列方法实现了在非正对起始的条件下穿越雪糕筒中间空隙的功能**
 
+   1. 基于颜色的目标识别
+   2. 透视变换
+   3. 简单的运动策略
+
+2. **优点**
+
+   1. 代码简单粗暴
+   2. 思路清晰
+   3. 可以在非正对起始的条件下穿越雪糕筒中间较小的空隙
+
+3. **不足和改进**
+
+   1. 未作镜头畸变的矫正
+
+      > 畸变矫正之后再透视变换可以减少最终阶段控制器的压力
+
+   2. 运动策略不够优雅流畅
+
+      > 可以使用类似规划-追踪控制的方案比如EGO+MPC效果应该会很不错
+
+   3. 没有考虑视野中目标缺失的起始情况
+
+      > 一开始可以转动一圈
+
+   4. 颜色识别可能会被同颜色物体和环境光干扰
+
+      > 使用基于网络的方法进行识别
 
 ## 参考文献
 
-
+1. https://en.wikipedia.org/wiki/3D_projection#Perspective_projection
+2. https://www.bilibili.com/video/BV1Z7411y7iJ
 

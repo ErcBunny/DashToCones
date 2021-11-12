@@ -487,7 +487,7 @@ bool perspective_transform(Mat &img, Mat &dst, Point2d P1, Point2d P2, Point2d P
         Point2f corners[4];       // 4 pts in src img
         Point2f corners_trans[4]; // 4 pts in inverse perspective map
 
-        // params of the tranform (depend on robot hardware)
+        // params of the tranform
         float roi_x0 = 0;
         float roi_y0 = 228;
         float ROI_HEIGHT = 30000;
